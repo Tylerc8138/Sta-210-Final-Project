@@ -4,6 +4,10 @@ author: "Tyler Cheung"
 format: pdf
 ---
 
+```{r setup, include = F}
+knitr::opts_chunk$set(echo = F, message = F, warning = F, fig.show = 'hide')
+```
+
 ```{r}
 library(ggplot2)
 library(tidyverse)
@@ -47,7 +51,7 @@ Airbnb has emerged as a highly successful company since its establishment in 200
 The aim of the project is to perform analyses on New York City Airbnb dataset and uncover insights into the sharing economy in one of the biggest cities of the world. My research question is "How can Airbnb's listing information potentially predict an Airbnb's pricing? I predict that factors such as the type of living conditions, location, and the number of reviews will help increase an Airbnb's value and predict its price.
 
 | Variable          | Class     | Description                                                 |
-|-------------------|-----------|-------------------------------------------------------------|
+|----------------|----------------|---------------------------------------|
 | ID                | integer   | Airbnb listing's ID                                         |
 | Name              | character | Listing's description                                       |
 | Host ID           | integer   | Airbnb Host ID                                              |
@@ -263,6 +267,7 @@ oneFit <- oneWflow %>%
 
 oneExtract <- extract_fit_parsnip(oneFit)
 
+oneAug <- augment(oneExtract$fit)
 
 preprocess_log <- recipe(Price ~ Borough + Neighborhood + Room_Type +
                   Minimum_Nights + Number_of_Reviews + 
@@ -390,20 +395,22 @@ This research project aimed to predict an Airbnb's listing price in 2019 based o
 ## Apendix 1.2: Linearity and Constant Variance
 
 ```{r}
-oneAug <- augment(oneExtract$fit)
-ggplot(oneAug, aes(x = .fitted, y = .resid)) +
+
+oneAugplot <- ggplot(oneAug, aes(x = .fitted, y = .resid)) +
   geom_point() +
   geom_hline(yintercept = 0, color = "darkred") +
   labs(x = "Fitted (predicted) value", y = "Residual") +
   theme_bw()
 
 
-ggplot(logAug, aes(x = .fitted, y = .resid)) +
+twoAugPlot <- ggplot(logAug, aes(x = .fitted, y = .resid)) +
   geom_point() +
   geom_hline(yintercept = 0, color = "darkred") +
   labs(x = "Fitted (predicted) value", y = "Residual") +
   theme_bw()
 
+show(oneAugplot)
+show(twoAugPlot)
 
 
 
@@ -413,7 +420,7 @@ ggplot(logAug, aes(x = .fitted, y = .resid)) +
 
 ```{r}
 
-ggplot(oneAug, aes(sample = .resid)) +
+oneNorm <- ggplot(oneAug, aes(sample = .resid)) +
 stat_qq() +
 stat_qq_line() +
 theme_bw() +
@@ -421,12 +428,15 @@ labs(x = "Theoretical quantiles",
 y = "Sample quantiles")
 
 
-ggplot(logAug, aes(sample = .resid)) +
+twoNorm <- ggplot(logAug, aes(sample = .resid)) +
 stat_qq() +
 stat_qq_line() +
 theme_bw() +
 labs(x = "Theoretical quantiles",
 y = "Sample quantiles")
+
+show(oneNorm)
+show(twoNorm)
 ```
 
 \
