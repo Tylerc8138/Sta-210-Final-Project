@@ -1,1 +1,434 @@
+---
+title: "Final Project - Airbnb Listing"
+author: "Tyler Cheung"
+format: pdf
+---
 
+```{r}
+library(ggplot2)
+library(tidyverse)
+library(tidymodels)
+library(MASS)
+library(Stat2Data)
+library(glmnet)
+library(nnet)
+install.packages("knitr")
+install.packages("kableExtra")
+library(knitr)
+library(kableExtra)
+install.packages("leaps")
+install.packages("car")
+install.packages("caret")
+library(caret)
+library(leaps)
+library(car)
+library(lme4)
+install.packages("corrplot")
+library(corrplot)
+library(rsample)
+library(broom)
+library(tidyr)
+install.packages("vip")
+library(vip)
+library(yardstick)
+library(dplyr)
+install.packages("rms")
+library(rms)
+
+
+
+airbnb_nyc <- read.csv("AB_NYC_2019 3.csv")
+```
+
+# Introduction and data
+
+Airbnb has emerged as a highly successful company since its establishment in 2008, with over 7 million listings in 191 countries and regions, operating in more than 100,000 cities. New York City is one of the most popular cities in the world and has become a thriving market for Airbnb, with nearly 50,000 listings in the city. Airbnb has seamlessly integrated into the rental landscape of the city in just a decade. Analyzing this dataset can provide valuable insights into key factors that can predict pricing for house owners to understand the market better. These analyses can uncover patterns and relationships within the data, leading to a deeper understanding of the Airbnb market in NYC and providing useful information for house owners in the industry to learn how to better their businesses.
+
+The aim of the project is to perform analyses on New York City Airbnb dataset and uncover insights into the sharing economy in one of the biggest cities of the world. My research question is "How can Airbnb's listing information potentially predict an Airbnb's pricing? I predict that factors such as the type of living conditions, location, and the number of reviews will help increase an Airbnb's value and predict its price.
+
+| Variable          | Class     | Description                                                 |
+|-------------------|-----------|-------------------------------------------------------------|
+| ID                | integer   | Airbnb listing's ID                                         |
+| Name              | character | Listing's description                                       |
+| Host ID           | integer   | Airbnb Host ID                                              |
+| Host Name         | character | Name of the Host                                            |
+| Borough           | character | Borough Location in NYC of the Airbnb (BK, MAN, BX, Queens) |
+| Neighborhood      | character | Specific Neighborhood Names                                 |
+| Latitude          | integer   | Numerical location of Airbnb in Latitude                    |
+| Longitude         | integer   | Numerical location of Airbnb in Longitude                   |
+| Room_Type         | character | Type of room of the Airbnb                                  |
+| Price             | integer   | The Amount it costs per night for the Airbnb                |
+| Minimum_Nights    | integer   | Minimum amount of nights a person can stay at the Airbnb    |
+| Number_of_Reviews | integer   | Amount of reviews posted in 2019 for the Airbnb             |
+| Last_Review_Date  | integer   | Last Review posted for the Airbnb                           |
+| Reviews_per_Month | integer   | Amount of reviews posted per month on Average               |
+| Availability_365  | integer   | How many days out of the year is the Airbnb available for   |
+
+Since 2008, guests and hosts have used Airbnb to expand on traveling possibilities and present more unique, personalized way of experiencing the world. This dataset describes the listing activity and metrics in NYC, NY for 2019. This data file includes all needed information to find out more about hosts, geographical availability, necessary metrics to make predictions and draw conclusions. This public dataset is part of Airbnb, and the original source can be found on this [website](http://insideairbnb.com/).
+
+https://www.kaggle.com/datasets/dgomonov/new-york-city-airbnb-open-data
+
+## Cleaning up the Dataset
+
+```{r}
+# Drop irrelevant or redundant columns
+airbnb_nyc <- airbnb_nyc[, c("id", "name", "host_id", "host_name", "neighbourhood_group", "neighbourhood", "latitude", "longitude", "room_type", "price", "minimum_nights", "number_of_reviews", "last_review", "reviews_per_month", "availability_365")]
+
+# Remove missing data
+airbnb_nyc <- airbnb_nyc[complete.cases(airbnb_nyc), ]
+
+# Remove outliers
+airbnb_nyc <- airbnb_nyc[airbnb_nyc$price < quantile(airbnb_nyc$price, 0.99), ]
+
+# Convert date columns to date format
+airbnb_nyc$last_review <- as.Date(airbnb_nyc$last_review)
+
+# Convert price column to numeric
+airbnb_nyc$price <- as.numeric(gsub("\\$", "", airbnb_nyc$price))
+
+# Rename columns for easier understanding
+colnames(airbnb_nyc) <- c("ID", "Name", "Host_ID", "Host_Name", "Borough", "Neighborhood", "Latitude", "Longitude", "Room_Type", "Price", "Minimum_Nights", "Number_of_Reviews", "Last_Review_Date", "Reviews_per_Month", "Availability_365")
+
+# Creating linear modelfor predicting pricing of Airbnbs using our predictor variables
+cut_rows <- function(airbnb_nyc, n) {
+  airbnb_nyc |>  slice(1:500)
+}
+
+# Apply the function to the dataset of size that the model can observe 
+airbnb_nyc_1 <- cut_rows(airbnb_nyc, 500) 
+
+```
+
+## Exploratory Data Analysis - EDA
+
+### **Distribution of Response Variable: Pricing of Airbnbs**
+
+```{r Distribution of Response, fig.show = 'asis'}
+library(lubridate)
+library(ggthemes)
+
+# plot the distribution of price
+p1 <- ggplot(airbnb_nyc, aes(Price)) +
+  geom_histogram(fill = "#2E7D32", color = "#4CAF50") +
+  theme_bw() +
+  scale_x_continuous(labels = scales::dollar) +
+  labs(x = "Price in USD", y = "Number of Listings", title = "Distribution of Price") +
+  theme_fivethirtyeight()
+
+
+p2 <- ggplot(airbnb_nyc, aes(log(Price))) +
+  geom_histogram(binwidth = 0.5, fill = "#2E7D32", color = "#4CAF50") +
+  scale_x_continuous() +
+  theme_bw() +
+  labs(x = "Log of Price in USD", y = "Number of Listings", title = "Distribution of Price") +
+  theme_fivethirtyeight()
+
+show(p1)
+show(p2)
+
+```
+
+The initial examination of the distribution of Airbnbs' average pricing in NYC shows a right-skewed, non-normal distribution with a range of 0 to 400 dollars. However, upon taking the logarithm of the response variable, the distribution becomes roughly normal, unimodal, with a mean around 4.5, and minimal skewness, ranging from 3 to 6.5. While we may not necessarily utilize the log-transformed response variable in our regression, it is important to consider its impact on the distribution.
+
+```{r}
+# Plot the distribution of listings by borough and neighborhood
+library(ggplot2)
+library(dplyr)
+
+# Calculate average price and number of listings by borough
+airbnb_nyc_borough <- airbnb_nyc |>
+  group_by(Borough) |>
+  summarise(avg_Price = mean(Price),
+            num_listings = n())
+
+# Create bar plot with color scale representing number of listings
+ggplot(airbnb_nyc_borough, aes(x = Borough, y = avg_Price, fill = num_listings)) +
+  geom_col() +
+  scale_fill_gradient(low = "lightblue", high = "darkblue") +
+  labs(x = "Borough", y = "Average Price", fill = "Number of Listings") +
+  ggtitle("Average Airbnb Price by Borough in NYC") +
+  theme_minimal()
+```
+
+Upon analyzing the distribution of Airbnbs' pricing, my focus was drawn towards the average prices of Airbnb listings in the five distinct boroughs of New York City. Notably, Brooklyn and Manhattan emerged as the two most sought-after locations, boasting the highest number of listings per year and commanding the highest average prices for Airbnb accommodations in NYC. These intriguing findings have piqued my curiosity and have led me to delve deeper into investigating the potential variables that may influence the pricing of Airbnbs in these popular boroughs. I broke my research down into two sub-section by first looking into the effects of my quantitative variables and following that looking the effects of categorical variables. By conducting a thorough analysis, I hope to gain a comprehensive understanding of the underlying factors that contribute to the observed price differentials and shed light on the complex dynamics that drive the Airbnb market in Brooklyn and Manhattan.
+
+### **Distribution of Key Predictors (Numeric):**
+
+```{r}
+
+Reviews <- ggplot(airbnb_nyc, aes(x = Number_of_Reviews)) +
+  geom_histogram(color = "white") +
+  theme_bw() +
+  labs(x = "Number of Reviews", y = "Number of Listings", 
+       title = "# of Reviews Effect on Number of Listings") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+Reviews_log <- ggplot(airbnb_nyc, aes(x = log(Number_of_Reviews))) +
+  geom_histogram(color = "white") +
+  theme_bw() +
+  labs(x = "Log Number of Reviews", y = "Number of Listings", 
+       title = " Log Distribution # of Reviews Effect on Number of Listings") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+Nights <- ggplot(airbnb_nyc, aes(x = Minimum_Nights)) +
+  geom_histogram(color = "white") +
+  theme_bw() +
+  labs(x = "Minimum Nights", y = "Number of Listings", 
+       title = "Minimum Amount of Nights Effect on Number of Listings") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+Nights_log <- ggplot(airbnb_nyc, aes(x = log(Minimum_Nights))) +
+  geom_histogram(color = "white") +
+  theme_bw() +
+  labs(x = "Log Number of Reviews", y = "Number of Listings", 
+       title = "Log Distribution of Minimum Nights Effect on Number of Listings") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+Availability <- ggplot(airbnb_nyc, aes(x = Availability_365)) +
+  geom_histogram(color = "white") +
+  theme_bw() +
+  labs(x = "Availability in the Year", y = "Number of Listings", 
+       title = "Availability of Airbnbs Effect on Number of Listings") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+Availability_log <- ggplot(airbnb_nyc, aes(x = log(Availability_365))) +
+  geom_histogram(color = "white") +
+  theme_bw() +
+  labs(x = "Log Number of Availability", y = "Number of Listings", 
+       title = "Log Distribution of Availability Effect on Number of Listings") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+show(Reviews)
+show(Nights)
+show(Availability)
+```
+
+Key predictors that are considered for this potential model are the numerical stats for each listing's hosting criteria and user feedback in order to examine the predictors effect on our response variable (Pricing). Given that the distribution of Number of Reviews, Minimum Nights, and Availability within the year are right-skewed we wanted to continue to consider the log transformation of these predictor values.
+
+```{r}
+
+cor_airbnb <- airbnb_nyc_1 %>% 
+  dplyr::select(Price, Number_of_Reviews, Minimum_Nights, Reviews_per_Month, Availability_365) %>%
+  cor(use = "pairwise.complete.obs") %>% 
+  round(2) %>% 
+  corrplot::corrplot(method = "number", number.cex = 0.7)
+
+```
+
+Upon examining the correlation matrix, we can observe that there is no significant correlation between the variables. This implies that if we were to use interaction terms in our model we would be able to avoid problems like multicollinearity, which can make it difficult to interpret the effects of individual variables on the response variable. This is because the assumption of correlation between the variables is not fully met.
+
+# Methodology
+
+## Observation of Quantitative & Categorical Variables
+
+```{r}
+
+# Filtering by Borough (Manhattan and Brooklyn)
+airbnb_nyc_man_brook <- airbnb_nyc_1 |>
+  filter(Borough %in% c("Manhattan", "Brooklyn"))
+
+airbnb_man <- airbnb_nyc_1 |>
+  filter(Borough %in% "Manhattan")
+
+airbnb_brook <- airbnb_nyc_1 |>
+  filter(Borough %in% "Brooklyn")
+
+# Split the data into training and testing sets
+set.seed(123) # For reproducibility
+train_indices <- sample(nrow(airbnb_nyc_man_brook), 0.8 * nrow(airbnb_nyc_man_brook))
+train <- airbnb_nyc_man_brook[train_indices, ]
+test <- airbnb_nyc_man_brook[-train_indices, ]
+folds <- vfold_cv(train, v = 10)
+
+preprocess_1 <- recipe(Price ~ Borough + Neighborhood + Room_Type +
+                  Minimum_Nights + Number_of_Reviews + 
+                  Availability_365, data = train) %>%
+  update_role(Borough, new_role = "ID") %>% 
+  update_role(Room_Type, new_role = "ID") %>%
+  step_other(Neighborhood) %>% 
+  step_impute_median(all_numeric()) %>%
+  step_scale(all_numeric_predictors()) %>%
+  step_dummy(all_nominal_predictors()) |>
+  step_zv(all_predictors()) 
+
+spec <- linear_reg() %>% 
+  set_engine("lm")
+
+oneWflow <- workflow() %>% 
+  add_model(spec) %>% 
+  add_recipe(preprocess_1)
+
+oneFit <- oneWflow %>% 
+  fit(train)
+
+oneExtract <- extract_fit_parsnip(oneFit)
+
+
+preprocess_log <- recipe(Price ~ Borough + Neighborhood + Room_Type +
+                  Minimum_Nights + Number_of_Reviews + 
+                  Availability_365, data = train) %>%
+  step_log(Price) %>% 
+  update_role(Borough, new_role = "ID") %>% 
+  update_role(Room_Type, new_role = "ID") %>%
+  step_other(Neighborhood) %>% 
+  step_impute_median(all_numeric()) %>%
+  step_scale(all_numeric_predictors()) %>%
+  step_center(all_numeric_predictors()) %>% 
+  step_dummy(all_nominal_predictors()) |>
+  step_zv(all_predictors()) 
+
+logWflow <- workflow() %>% 
+  add_model(spec) %>% 
+  add_recipe(preprocess_log)
+
+logFit <- logWflow %>% 
+  fit(train)
+
+logExtract <- extract_fit_parsnip(logFit)
+
+logAug <- augment(logExtract$fit)
+
+
+scatter.smooth(train$Minimum_Nights, log(train$Price))
+plot(lm(log(Price) ~ Minimum_Nights, train))
+
+scatter.smooth(train$Availability_365, log(train$Price))
+plot(lm(log(Price) ~ Availability_365, train))
+
+scatter.smooth(train$Number_of_Reviews, log(train$Price))
+plot(lm(log(Price) ~ Number_of_Reviews, train))
+
+
+
+onelm <-lm(Price ~ Borough + Neighborhood + Room_Type +
+                  Minimum_Nights + Number_of_Reviews + 
+                  Availability_365, data = train)
+
+loglm <- lm(log(Price) ~ Borough + Neighborhood + Room_Type +
+                  Minimum_Nights + Number_of_Reviews + 
+                  Availability_365, data = train)
+
+tidy(oneFit)
+tidy(logFit)
+
+```
+
+```{r}
+calc_model_stats <- function(x) {
+  glance(extract_fit_parsnip(x)) |>
+    dplyr::select(adj.r.squared, AIC, BIC)
+}
+
+set.seed(55)
+oneResamples <- oneWflow |>
+  fit_resamples(resamples = folds, 
+                control = control_resamples(extract = calc_model_stats))
+
+logResamples <- logWflow |>
+  fit_resamples(resamples = folds, 
+                control = control_resamples(extract = calc_model_stats))
+
+comparisonMetrics <- tibble(model = character(), rmse = numeric(), adjRsq = numeric(),
+                            AIC = numeric(), BIC = numeric())
+
+```
+
+```{r}
+comparisonMetrics <- comparisonMetrics %>% 
+  add_row(model = "preprocess_1",
+          rmse = collect_metrics(oneResamples) %>% filter(.metric == "rmse") %>% dplyr::select(mean) %>% pull(),
+          adjRsq = map_df(oneResamples$.extracts, ~ .x[[1]][[1]]) %>% summarise(a = mean(adj.r.squared)) %>%
+            dplyr::select(a) %>% pull(),
+          AIC = map_df(oneResamples$.extracts, ~ .x[[1]][[1]]) %>% summarise(a = mean(AIC)) %>%
+            dplyr::select(a) %>% pull(),
+          BIC = map_df(oneResamples$.extracts, ~ .x[[1]][[1]]) %>% summarise(a = mean(BIC)) %>%
+            dplyr::select(a) %>% pull()) |>
+  add_row(model = "logModel",
+          rmse = collect_metrics(logResamples) %>% filter(.metric == "rmse") %>% dplyr::select(mean) %>% pull(),
+          adjRsq = map_df(logResamples$.extracts, ~ .x[[1]][[1]]) %>% summarise(a = mean(adj.r.squared)) %>%
+           dplyr::select(a) %>% pull(),
+          AIC = map_df(logResamples$.extracts, ~ .x[[1]][[1]]) %>% summarise(a = mean(AIC)) %>%
+            dplyr::select(a) %>% pull(),
+          BIC = map_df(logResamples$.extracts, ~ .x[[1]][[1]]) %>% summarise(a = mean(BIC)) %>%
+           dplyr::select(a) %>% pull())
+```
+
+```{r}
+kable(comparisonMetrics, digits = 3, col.names = c("Model", "RMSE", "Adj. R Sq.", "AIC", "BIC"))
+```
+
+The objective of our analysis was to identify the optimal model for predicting the predicted price of Airbnb listings based on their various listing criteria (Borough, Room Type, Neighborhood, Minimum Nights, Availability) and customer feedback (Number of Reviews). To capture the variability in Airbnb pricing, we utilized a multiple linear regression framework. We evaluated two potential multiple regression models, both of which predicted the Airbnb price. The first model directly predicted the price, while the second model predicted the logarithm of the price. The models incorporated various predictors such as Borough, Neighborhood, Number of Reviews, Availability during the year, Minimum nights, and Room Type.
+
+Through cross-validation techniques, we compared two models to determine the optimal one for predicting an Airbnb's potential listing price. The table shows that the \`preprocess_1\` model, which directly predicts the price, produces significantly different results from the \`logModel\`, which predicts the logarithmic transformation of the price. Our primary focus was on the RMSE and BIC metrics. RMSE, which measures the average error within a model, should be minimized, and it is the most important value for prediction purposes. After considering the metrics, we concluded that \`logModel\` is the better model to use as it has a much lower RMSE of 0.524 compared to \`preprocess_1\`, which has an RMSE of 90.297. Moreover, the BIC value of \`logModel\` is 565.862, which is much lower than \`preprocess_1\`'s BIC of 4011.610.
+
+After identifying the potential model, we tested the conditions for linear regression. The first condition is independence, which we can assume to hold true since each Airbnb listing may not be affected by others. Although, we may consider that the location of two Airbnbs could potentially affect pricing. However, we can assume that each listing doesn't affect the other and independence is satisfied. Linearity was tested from the model, and normality was seen to be satisfied from the QQ plot. Finally, we tested constant variance from the residual plot, which showed an even distribution along the line of our data points, allowing us to assume constant variance is satisfied.
+
+# Results
+
+```{r}
+finalModel <- logWflow %>% 
+  fit(data = train)
+
+tidy(finalModel, conf.int = T, conf.level = 0.95) %>% 
+  kable(digits = 5) %>%
+  kableExtra::kable_styling(latex_options="scale_down") %>%
+  kableExtra::kable_styling(latex_options="HOLD_position")
+```
+
+$\hat{Price} = e^{4.616} \times e^{-0.0156 \times Minimum\_Nights} \times e^{-0.12068 \times Number\_of\_Reviews} \times e^{0.0267 \times Availability\_365}$ $\times e^{0.42206 \times Neighborhood\_East.Village} \times e^{0.430 \times Neighborhood\_Greenpoint} \times e^{0.052 \times Neighborhood\_Harlem}$ $\times e^{0.324 \times Neighborhood\_Upper.West.Side} \times e^{0.37102 \times Neighborhood\_Williamsburg} \times e^{0.261 \times Neighborhood\_Other}$
+
+By analyzing the slopes/effects of the predictors in our model, we were able to test the hypothesis that factors such as living conditions, location, and the number of reviews influence an Airbnb's value and predict its price. We found that neighborhoods in Brooklyn have a greater impact on the price of an Airbnb than those in Manhattan, assuming all other factors remain constant. This is not surprising given that Brooklyn has become a popular travel destination in recent years due to its gentrification and the addition of tourist attractions. For instance, Greenpoint was found to have a higher predictive value than other neighborhoods, possibly due to its popularity among young people in 2019.
+
+Our analysis revealed significant relationships between the median price of an Airbnb and the minimum nights, number of reviews, and availability during the year predictors. Specifically, each additional year in these predictors is expected to multiply the median price of an Airbnb by a factor of -0.0157, -0.1207, and 0.0267, respectively, on average, while holding all other factors constant.
+
+# Discussion
+
+This research project aimed to predict an Airbnb's listing price in 2019 based on potential predictors, such as Borough, Neighborhood, Room Type, Minimum Nights, Number of Reviews, and Availability during the year. Our analysis revealed that certain neighborhoods, including Greenpoint, East Village, Upper West Side, Williamsburg, and Other neighborhoods, had a significant positive impact on an Airbnb's price, as reflected by p-values less than 0.05. This finding supports our hypothesis that factors such as location and amenities would increase an Airbnb's value. However, we also acknowledged that the variables were skewed, and thus we used a multiple linear regression with log-transformed response to address this issue. Despite this adjustment, the model did not meet some of the required statistical assumptions, which limits the validity of our findings. There was definitely difficulty in finding an accurate model to use during my research. I initially wanted to use LASSO regression to help me find which predictor variables to use, but after realizing that majority of my datapoints were regressed to coefficient 0 leaving me with very few variables to observe I decided not to use LASSO as it would limit the scope of my research.
+
+# Appendix
+
+## Apendix 1.2: Linearity and Constant Variance
+
+```{r}
+oneAug <- augment(oneExtract$fit)
+ggplot(oneAug, aes(x = .fitted, y = .resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0, color = "darkred") +
+  labs(x = "Fitted (predicted) value", y = "Residual") +
+  theme_bw()
+
+
+ggplot(logAug, aes(x = .fitted, y = .resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0, color = "darkred") +
+  labs(x = "Fitted (predicted) value", y = "Residual") +
+  theme_bw()
+
+
+
+
+```
+
+## Appendix 1.3 : Normality
+
+```{r}
+
+ggplot(oneAug, aes(sample = .resid)) +
+stat_qq() +
+stat_qq_line() +
+theme_bw() +
+labs(x = "Theoretical quantiles",
+y = "Sample quantiles")
+
+
+ggplot(logAug, aes(sample = .resid)) +
+stat_qq() +
+stat_qq_line() +
+theme_bw() +
+labs(x = "Theoretical quantiles",
+y = "Sample quantiles")
+```
+
+\
+
+\
