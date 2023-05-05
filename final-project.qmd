@@ -134,7 +134,7 @@ show(p2)
 
 The initial examination of the distribution of Airbnbs' average pricing in NYC shows a right-skewed, non-normal distribution with a range of 0 to 400 dollars. However, upon taking the logarithm of the response variable, the distribution becomes roughly normal, unimodal, with a mean around 4.5, and minimal skewness, ranging from 3 to 6.5. While we may not necessarily utilize the log-transformed response variable in our regression, it is important to consider its impact on the distribution.
 
-```{r}
+```{r fig.show = 'asis'}
 # Plot the distribution of listings by borough and neighborhood
 library(ggplot2)
 library(dplyr)
@@ -158,7 +158,7 @@ Upon analyzing the distribution of Airbnbs' pricing, my focus was drawn towards 
 
 ### **Distribution of Key Predictors (Numeric):**
 
-```{r}
+```{r fig.show = 'asis'}
 
 Reviews <- ggplot(airbnb_nyc, aes(x = Number_of_Reviews)) +
   geom_histogram(color = "white") +
@@ -209,7 +209,7 @@ show(Availability)
 
 Key predictors that are considered for this potential model are the numerical stats for each listing's hosting criteria and user feedback in order to examine the predictors effect on our response variable (Pricing). Given that the distribution of Number of Reviews, Minimum Nights, and Availability within the year are right-skewed we wanted to continue to consider the log transformation of these predictor values.
 
-```{r}
+```{r fig.show = 'asis'}
 
 cor_airbnb <- airbnb_nyc_1 %>% 
   dplyr::select(Price, Number_of_Reviews, Minimum_Nights, Reviews_per_Month, Availability_365) %>%
@@ -394,7 +394,7 @@ This research project aimed to predict an Airbnb's listing price in 2019 based o
 
 ## Apendix 1.2: Linearity and Constant Variance
 
-```{r}
+```{r fig.show = 'asis'}
 
 oneAugplot <- ggplot(oneAug, aes(x = .fitted, y = .resid)) +
   geom_point() +
@@ -418,7 +418,7 @@ show(twoAugPlot)
 
 ## Appendix 1.3 : Normality
 
-```{r}
+```{r fig.show = 'asis'}
 
 oneNorm <- ggplot(oneAug, aes(sample = .resid)) +
 stat_qq() +
