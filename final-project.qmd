@@ -107,7 +107,7 @@ airbnb_nyc_1 <- cut_rows(airbnb_nyc, 500)
 
 ### **Distribution of Response Variable: Pricing of Airbnbs**
 
-```{r Distribution of Response, fig.show = 'asis', fig.width= 3, fig.height = 2}
+```{r Distribution of Response, fig.show = 'asis'}
 library(lubridate)
 library(ggthemes)
 
@@ -225,7 +225,7 @@ Upon examining the correlation matrix, we can observe that there is no significa
 
 ## Observation of Quantitative & Categorical Variables
 
-```{r}
+```{r, message= F, warning= F}
 
 # Filtering by Borough (Manhattan and Brooklyn)
 airbnb_nyc_man_brook <- airbnb_nyc_1 |>
