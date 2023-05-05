@@ -107,7 +107,7 @@ airbnb_nyc_1 <- cut_rows(airbnb_nyc, 500)
 
 ### **Distribution of Response Variable: Pricing of Airbnbs**
 
-```{r Distribution of Response, fig.show = 'asis'}
+```{r Distribution of Response, fig.show = 'asis', fig.width= 3, fig.height = 2}
 library(lubridate)
 library(ggthemes)
 
